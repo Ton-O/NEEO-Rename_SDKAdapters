@@ -92,7 +92,7 @@ function GetAllDeviceDrivers(ProjectJSON) {
                     FoundOne++;
                     }
                 else
-                    console.log("Yes, we have a maching pair, but it has already been updated");
+                    console.log("Yes, we have a maching pair, but it has already been updated; you can safely remove this duplicate device name");
                 console.log("")
 
             }
