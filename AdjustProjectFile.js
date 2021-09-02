@@ -10,13 +10,14 @@ var OldAdapter;
 var NewSource;
 var NewAdapter;
 var DeviceDrivers; 
+var NewJson;
 
 
 function Read_SDKAdapter()
 {
 var MySdkAdapter = sdkadapter;
 }
-//"^The"
+
 function FindLatestProjectFileName(Directory){
     var filter = /^project-home.+json$/;
     var Result = "";
@@ -38,14 +39,19 @@ function Read_Projectfile(FileName) {
     return   data;
 }
 
-function Backup_Projectfile(Filename,Content,suffix) {
+function Backup_Projectfile(Filename,Content) {
 
    var BackupFilename = __dirname + "/"+ Filename + '.bkp'
-    try {
+   if (fs.existsSync(BackupFilename)) {
+       console.log("Backup-file already exists, not overwriting it")
+       return true;
+   }
+
+   try {
         fs.writeFileSync(BackupFilename, Content);
     }
     catch (err) 
-        {console.log("Error creating backuop, aborting",err);
+        {console.log("Error creating backup, aborting",err);
         return false;
     }
         return true;
@@ -56,73 +62,74 @@ function Backup_Projectfile(Filename,Content,suffix) {
 function GetAllDeviceDrivers(ProjectJSON) {
     var PossibleDups = [];
     var filter = / \(2\)$/
+    NewJson = JSON.stringify(ProjectJSON)   // prepare a new JSON-structure that can be modified and written out 
+
     DeviceDrivers = JSONPath({path: "$.project.rooms.*.devices.*", json: ProjectJSON});
     var SplitOn = " (2)"
-
-    for(var i = 0; i < DeviceDrivers.length; i++) {
-            var bb = { name:DeviceDrivers[i],sourceName:DeviceDrivers[i].details.sourceName,adapterName:DeviceDrivers[i].details.adapterName}
-//            console.log(bb);
+    console.log("")
+    console.log("Overview of all custom drivers:")
+    for(var i = 0; i < DeviceDrivers.length; i++) 
+        if (DeviceDrivers[i].details.sourceName.substring(0,4)=="src-"){
+            console.log("Driver: ",DeviceDrivers[i].name,DeviceDrivers[i].details.sourceName,DeviceDrivers[i].details.adapterName)
             if (filter.test(DeviceDrivers[i].name))  // IS this the "Duplicate devicedriver" we are looking for
                 PossibleDups.push({name:DeviceDrivers[i].name,sourceName:DeviceDrivers[i].details.sourceName,adapterName:DeviceDrivers[i].details.adapterName})
-    };
-    console.log(PossibleDups)
-    if (!PossibleDups.length)
-        {console.log("We cannot find a duplicate device-driver (marked by '"+SplitOn+"' at the nend of it;s name; aborting")
+        };
+        console.log("")
+
+        if (!PossibleDups.length)
+        {console.log("We cannot find a duplicate device-driver (marked by '"+SplitOn+"' at the end of it's name; aborting")
         throw "Error"
         }
     let FoundOne = 0;
     for(var New = 0; New < PossibleDups.length; New++) {
         let LookforName = PossibleDups[New].name.split(SplitOn)[0]
+        console.log("Possible new driver name:",PossibleDups[New].name,"Checking if we have a matching driver with name",LookforName)
         for(var Old = 0; Old < DeviceDrivers.length; Old++) {
             if (LookforName==DeviceDrivers[Old].name) {
-                console.log("We have a matching device driver:",PossibleDups[New],  "and", { name:DeviceDrivers[Old].name,sourceName:DeviceDrivers[Old].details.sourceName,adapterName:DeviceDrivers[Old].details.adapterName})
-                if (!FoundOne) {
-                    OldSource = DeviceDrivers[Old].details.sourceName;
-                    OldAdapter = DeviceDrivers[Old].details.adapterName
-                    NewSource = PossibleDups[New].sourceName
-                    NewAdapter = PossibleDups[New].adapterName
-                } 
-                else    
-                    if (OldSource != DeviceDrivers[Old].details.sourceName ||
-                        OldAdapter != DeviceDrivers[Old].details.adapterName ||
-                        NewSource != PossibleDups[New].sourceName ||
-                        NewAdapter != PossibleDups[New].adapterName) {
-                            console.log("We have multiple duplicate names, but with different adapterID's.... aborting")
-                            throw "Error"
-                        }                    
-                FoundOne++;
+                if (DeviceDrivers[Old].details.sourceName != PossibleDups[New].sourceName||DeviceDrivers[Old].details.adapterName!=PossibleDups[New].adapterName)
+                    {console.log("Yes, we have a matching device driver and it has different source/adaptername");
+                    MakeChanges(ProjectFileName,ProjectJSON,DeviceDrivers[Old],PossibleDups[New])
+                    FoundOne++;
+                    }
+                else
+                    console.log("Yes, we have a maching pair, but it has already been updated");
+                console.log("")
+
             }
         }
     }
+                
     if (!FoundOne) {
-        console.log("No matching device driver:")
+        console.log("Nothing we can do right now")
         return false
     }
-    else if (FoundOne>1) {
-        console.log("We have multiple matching device drivers")
-        return false
-        }
     else {console.log("We are good to go!")
         return true
     }
 
 }
 
-function MakeChanges(FileName,ProjectJSON) {
-    var NewJson = JSON.stringify(ProjectJSON)
-    var OldSource_term = new RegExp(OldSource, "g");
-    var OldAdapter_term = new RegExp(OldAdapter, "g");
+function MakeChanges(FileName,ProjectJSON,OldDeviceDriver,PossibleDup) {
+    var OldSource_term = new RegExp(OldDeviceDriver.details.sourceName, "g");
+    var OldAdapter_term = new RegExp(OldDeviceDriver.details.adapterName, "g");
 
-    console.log("replacing",OldSource,"into", NewSource)
-    console.log("replacing",OldAdapter,"into",NewAdapter)
+    if (OldDeviceDriver.details.sourceName!=PossibleDup.sourceName)
+        console.log("replacing",OldDeviceDriver.details.sourceName,"into", PossibleDup.sourceName)
+    console.log("replacing",OldDeviceDriver.details.adapterName,"into",PossibleDup.adapterName)
     console.log("Before change ",
     ProjectJSON.project.rooms["Laptop"].devices["Kodi (TonO-Macbook.local)"].name, 
     ProjectJSON.project.rooms["Laptop"].devices["Kodi (TonO-Macbook.local)"].details.sourceName,
     ProjectJSON.project.rooms["Laptop"].devices["Kodi (TonO-Macbook.local)"].details.adapterName)
-    NewJson = NewJson.replace(OldSource_term,NewSource) 
-    NewJson = NewJson.replace(OldAdapter_term,NewAdapter) 
+
+    NewJson = NewJson.replace(OldSource_term,PossibleDup.sourceName) 
+    NewJson = NewJson.replace(OldAdapter_term,PossibleDup.adapterName) 
+
+}
+function Write_NewProjectFile(FileName,NewJson) {
 
     let NewFileName = "/steady/neeo/cp6/"+ FileName;
+    console.log("And writing contents to file",NewFileName)
+
     try {
         fs.writeFileSync(NewFileName, NewJson)
     }
@@ -132,17 +139,21 @@ function MakeChanges(FileName,ProjectJSON) {
 
     console.log("Outputfile written:",NewFileName);
     return true         
+
 }
 
 function MyMain() {
     ProjectFileName = FindLatestProjectFileName("/steady/neeo/cp6");
     if (ProjectFileName) {
-        ProjectJSON = Read_Projectfile(ProjectFileName)
+        ProjectJSON = Read_Projectfile(ProjectFileName)   
+        if (!Backup_Projectfile(ProjectFileName,ProjectJSON)) 
+            console.log("Error creating backup, aborting")
+        else
+            {ProjectJSON = JSON.parse(ProjectJSON);
+            if (GetAllDeviceDrivers(ProjectJSON))
+                Write_NewProjectFile(ProjectFileName,NewJson)
+        }
     }
-    ProjectJSON = JSON.parse(ProjectJSON);
-    if (GetAllDeviceDrivers(ProjectJSON))
-        MakeChanges(ProjectFileName,ProjectJSON)
-    
 
 
 
