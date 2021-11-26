@@ -116,10 +116,7 @@ function MakeChanges(FileName,ProjectJSON,OldDeviceDriver,PossibleDup) {
     if (OldDeviceDriver.details.sourceName!=PossibleDup.sourceName)
         console.log("replacing",OldDeviceDriver.details.sourceName,"into", PossibleDup.sourceName)
     console.log("replacing",OldDeviceDriver.details.adapterName,"into",PossibleDup.adapterName)
-    console.log("Before change ",
-    ProjectJSON.project.rooms["Laptop"].devices["Kodi (TonO-Macbook.local)"].name, 
-    ProjectJSON.project.rooms["Laptop"].devices["Kodi (TonO-Macbook.local)"].details.sourceName,
-    ProjectJSON.project.rooms["Laptop"].devices["Kodi (TonO-Macbook.local)"].details.adapterName)
+
 
     NewJson = NewJson.replace(OldSource_term,PossibleDup.sourceName) 
     NewJson = NewJson.replace(OldAdapter_term,PossibleDup.adapterName) 
